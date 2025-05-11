@@ -1,0 +1,2 @@
+[console_scripts]
+doudesu = doudesu.__main__:main
