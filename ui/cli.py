@@ -457,6 +457,7 @@ def run_cli():
 
                                 # Only delete file if upload was successful
                                 if upload_success:
+                                    os.remove(pdf_path)
                                     console.print(f"[cyan]File uploaded successfully. Retaining local file for further use.[/cyan]")
                                 else:
                                     console.print(f"[red]Failed to upload. Keeping local file for retry.[/red]")
