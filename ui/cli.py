@@ -9,6 +9,11 @@ from rich.table import Table
 from ..core.doudesu import Doujindesu
 from ..utils.converter import ImageToPDFConverter
 
+
+import boto3
+from botocore.exceptions import NoCredentialsError
+import os
+
 console = Console()
 
 
@@ -90,6 +95,20 @@ def display_manga_details(details):
 #             start = get_int_input("Enter start chapter", 1, total_chapters)
 #             end = get_int_input("Enter end chapter", start, total_chapters)
 #             return list(range(start - 1, end))
+
+def upload_to_s3(file_path, bucket_name, s3_key):
+    s3 = boto3.client("s3")
+    try:
+        s3.upload_file(file_path, bucket_name, s3_key)
+        print(f"[green]Uploaded to S3: s3://{bucket_name}/{s3_key}[/green]")
+        return True  # Upload successful
+    except NoCredentialsError:
+        print("[red]S3 upload failed: No AWS credentials found[/red]")
+        return False  # Upload failed due to missing credentials
+    except Exception as e:
+        print(f"[red]S3 upload error: {e}[/red]")
+        return False  # Upload failed due to other errors
+
 
 def select_chapters(total_chapters: int) -> list[int]:
     """Prompt user to select chapters with a timeout of 10 seconds."""
@@ -258,6 +277,13 @@ def run_cli():
                                     pdf_path = f"result/{title}.pdf"
                                     ImageToPDFConverter(images, pdf_path).convert_images_to_pdf(images, pdf_path)
                                     console.print(f"[green]Saved as: {pdf_path}[/green]")
+                                    # Tambahkan bagian ini:
+                                    bucket_name = "savetestingec2"
+                                    s3_key = f"doujindesu/{title}.pdf"
+                                    upload_to_s3(pdf_path, bucket_name, s3_key)
+
+                                    # Optional: hapus file lokal
+                                    os.remove(pdf_path)
                                 else:
                                     console.print("[red]No images found in chapter[/red]")
                         except Exception as e:
@@ -418,20 +444,28 @@ def run_cli():
                             if images:
                                 console.print(f"Found {len(images)} images")
                                 title = f"{details.name} - Chapter {idx + 1}"
+
                                 pdf_path = f"result/{title}.pdf"
                                 ImageToPDFConverter(images, pdf_path).convert_images_to_pdf(images, pdf_path)
                                 console.print(f"[green]Saved as: {pdf_path}[/green]")
+
+                                bucket_name = "savetestingec2"
+                                s3_key = f"doujindesu/{title}.pdf"
+                                
+                                # Upload to S3
+                                upload_success = upload_to_s3(pdf_path, bucket_name, s3_key)
+
+                                # Only delete file if upload was successful
+                                if upload_success:
+                                    console.print(f"[cyan]File uploaded successfully. Retaining local file for further use.[/cyan]")
+                                else:
+                                    console.print(f"[red]Failed to upload. Keeping local file for retry.[/red]")
+
                             else:
-                                console.print("[red]No images found[/red]")
-
+                                console.print("[red]No images found in chapter[/red]")
                     except Exception as e:
-                        console.print(f"[red]Failed to download {manga_info.name}: {e}[/red]")
+                        console.print(f"[red]Error while downloading {manga_info.name}: {e!s}[/red]")
 
-                # lanjut ke halaman berikutnya jika ada
-                if current_results.next_page_url:
-                    current_results = Doujindesu.get_search_by_url(current_results.next_page_url)
-                else:
-                    break
         
         else:
             break
